@@ -1,14 +1,13 @@
 {
-  "name": "lernova-firebase-proxy",
+  "name": "leranova-mirror",
   "version": "1.0.0",
-  "description": "Firebase proxy server for Lernova frontend (deployed on Railway).",
-  "type": "module",
   "main": "index.js",
+  "type": "module",
   "scripts": {
     "start": "node index.js"
   },
   "dependencies": {
-    "express": "^4.21.1",
+    "express": "^4.19.2",
     "cors": "^2.8.5",
     "node-fetch": "^3.3.2"
   }
