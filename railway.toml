@@ -1,0 +1,17 @@
+[build]
+builder = "NIXPACKS"
+buildCommand = "npm install"
+
+[deploy]
+startCommand = "node index.js"
+numReplicas = 1
+restartPolicyType = "ON_FAILURE"
+
+[service]
+internal_port = 3000
+auto_stop_mins = 0
+run_command = "node index.js"
+
+[variables]
+NODE_ENV = "production"
+PORT = "3000"
