@@ -1,49 +1,51 @@
-// فعال‌سازی DNS شکن (Shecan) در lookup داخلی
 import https from "https";
 import dns from "dns";
 import express from "express";
 import fetch from "node-fetch";
 import cors from "cors";
 
-// IPهای DNS شکن
+// DNS شکن Shecan
 const shecanDNS = ["178.22.122.100", "185.51.200.2"];
+dns.setServers(shecanDNS);
 
-// تابع lookup سفارشی که برای هر اتصال HTTPS از Shecan استفاده می‌کند
+// lookup اختصاصی جهت اطمینان از resolve با Shecan
 const lookup = (hostname, options, callback) => {
-  dns.setServers(shecanDNS);
   dns.lookup(hostname, options, callback);
 };
-
-// Agent اختصاصی برای استفاده در همهٔ اتصالات HTTPS
 const agent = new https.Agent({ lookup });
 
 const app = express();
 app.use(cors());
 app.use(express.text({ type: "*/*" }));
 
-// مسیر سلامت (Health Check) برای Railway
-app.get("/", (req, res) => {
-  res.status(200).send("✅ Mirror Proxy with Shecan DNS is running");
+// مسیر اصلی: محتوای سایت leran-one.vercel.app را واکشی و بازگشت می‌دهد
+app.get("/", async (req, res) => {
+  const target = "https://leran-one.vercel.app";
+  try {
+    const response = await fetch(target, { agent });
+    const html = await response.text();
+    res.set("Content-Type", response.headers.get("content-type") || "text/html");
+    res.status(response.status).send(html);
+  } catch (err) {
+    console.error("Proxy DNS error:", err);
+    res.status(500).send("<h3>❌ خطا در واکشی دامنه مقصد</h3>" + err.message);
+  }
 });
 
-// مسیرهای Mirror (سایر درخواست‌ها را پروکسی می‌کند)
+// سایر مسیرها نیز Mirror خواهند بود
 app.get("*", async (req, res) => {
   const target = "https://leran-one.vercel.app" + req.originalUrl;
   try {
     const response = await fetch(target, { agent });
     const data = await response.text();
-    const contentType = response.headers.get("content-type") || "text/html";
-
-    res.set("Content-Type", contentType);
+    res.set("Content-Type", response.headers.get("content-type") || "text/html");
     res.status(response.status).send(data);
   } catch (err) {
-    console.error("Proxy DNS error:", err);
     res.status(500).send("Internal Proxy DNS Error ❌");
   }
 });
 
-// پورت Railway (پویا)
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () =>
-  console.log(`🚀 Mirror Proxy running on port ${PORT} with Shecan DNS`)
+  console.log(`🌍 Mirror Proxy running (DNS: Shecan) port ${PORT}`)
 );
