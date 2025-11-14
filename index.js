@@ -1,10 +1,10 @@
 import express from "express";
-import fetch from "node-fetch";
 import dns from "dns";
 import https from "https";
+import fetch from "node-fetch";
 
-const app = express();
 const PORT = process.env.PORT || 8080;
+
 
 // ✅ هدف آینه (Frontend یا سایتی که قراره Mirror بشه)
 const TARGET = "https://leran-one.vercel.app";
