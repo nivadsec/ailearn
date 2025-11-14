@@ -1,14 +1,20 @@
 {
-  "name": "leranova-mirror-proxy",
+  "name": "lernova-firebase-mirror-proxy",
   "version": "1.0.0",
-  "type": "module",
+  "description": "A Mirror Proxy running on Railway using Shecan DNS and Express to bypass CORS/DNS restrictions for Firebase & Frontend requests.",
   "main": "index.js",
+  "type": "module",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "dev": "nodemon index.js"
   },
   "dependencies": {
     "express": "^4.19.2",
-    "cors": "^2.8.5",
     "node-fetch": "^3.3.2"
-  }
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "author": "MohammadHasan",
+  "license": "MIT"
 }
