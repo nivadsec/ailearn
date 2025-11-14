@@ -1,14 +1,20 @@
+// -----------------------------
+// Mirror Proxy - Stable Release
+// Author: MohammadHasan
+// -----------------------------
+
 import express from "express";
 import fetch from "node-fetch";
 import dns from "dns";
 import https from "https";
 
-const app = express();
+const app = express(); // <— این خط باید قبل از app.use باشد
 const PORT = process.env.PORT || 8080;
+
 const TARGET = "https://leran-one.vercel.app";
 const FIRESTORE = "https://firestore.googleapis.com";
 
-// --- DNS resolver (Shecan) ---
+// ===== DNS Resolver (Shecan) =====
 const resolver = new dns.promises.Resolver();
 resolver.setServers([
   "178.22.122.100",
@@ -22,33 +28,34 @@ const lookup = async (hostname) => {
     const [ip] = await resolver.resolve4(hostname);
     return { address: ip, family: 4 };
   } catch {
-    console.error("DNS lookup fallback:", hostname);
     return { address: hostname, family: 4 };
   }
 };
 
 const agent = new https.Agent({ lookup });
 
-// --- Core ---
+// ===== Express Middlewares =====
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// MIME type fix
+// MIME-Type Fix
 app.use((req, res, next) => {
   if (req.path.endsWith(".woff2")) res.type("font/woff2");
   else if (req.path.endsWith(".woff")) res.type("font/woff");
   next();
 });
 
-// Proxy handling
+// ===== Proxy Logic =====
 app.all("*", async (req, res) => {
   try {
-    const targetUrl = req.originalUrl.includes("google.firestore.v1.")
+    const isFirestore = req.originalUrl.includes("google.firestore.v1.");
+    const targetUrl = isFirestore
       ? FIRESTORE + req.originalUrl
       : TARGET + req.originalUrl;
 
+    const isListen = req.originalUrl.includes("google.firestore.v1.Firestore/Listen");
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 12000); // 12s timeout
+    const timeout = !isListen ? setTimeout(() => controller.abort(), 20000) : null;
 
     const response = await fetch(targetUrl, {
       method: req.method,
@@ -58,11 +65,11 @@ app.all("*", async (req, res) => {
           ? undefined
           : JSON.stringify(req.body),
       agent,
-      signal: controller.signal,
+      signal: controller.signal
     });
-    clearTimeout(timeout);
+    if (timeout) clearTimeout(timeout);
 
-    // CORS headers
+    // CORS fix
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Access-Control-Allow-Headers", "*");
     res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
@@ -71,12 +78,14 @@ app.all("*", async (req, res) => {
     res.status(response.status);
     const buffer = await response.arrayBuffer();
     res.send(Buffer.from(buffer));
+
   } catch (err) {
-    console.error("Proxy error:", err.name, err.message);
+    console.error("Proxy error:", err.message);
     res.status(502).send("Proxy Error: " + err.message);
   }
 });
 
+// ===== Start Server =====
 app.listen(PORT, () =>
-  console.log(`🌍 Mirror Proxy active on port ${PORT}`)
+  console.log(`🌍 Mirror Proxy running on port ${PORT}`)
 );
