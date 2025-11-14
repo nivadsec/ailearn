@@ -1,90 +1,82 @@
 import express from "express";
+import fetch from "node-fetch";
 import dns from "dns";
 import https from "https";
-import fetch from "node-fetch";
 
+const app = express();
 const PORT = process.env.PORT || 8080;
-
-
-// ✅ هدف آینه (Frontend یا سایتی که قراره Mirror بشه)
 const TARGET = "https://leran-one.vercel.app";
 const FIRESTORE = "https://firestore.googleapis.com";
 
-// ✅ Resolver اختصاصی برای DNS شکن
+// --- DNS resolver (Shecan) ---
 const resolver = new dns.promises.Resolver();
 resolver.setServers([
   "178.22.122.100",
   "185.51.200.2",
   "185.55.225.25",
-  "178.22.122.101",
+  "178.22.122.101"
 ]);
 
-async function customLookup(hostname) {
+const lookup = async (hostname) => {
   try {
     const [ip] = await resolver.resolve4(hostname);
     return { address: ip, family: 4 };
-  } catch (err) {
-    console.error("DNS Resolve Error:", err);
-    throw err;
+  } catch {
+    console.error("DNS lookup fallback:", hostname);
+    return { address: hostname, family: 4 };
   }
-}
+};
 
-// ✅ HTTPS Agent با override کردن DNS شکن
-const agent = new https.Agent({ lookup: customLookup });
+const agent = new https.Agent({ lookup });
 
-// 🧩 Middleware برای پارس درخواست‌ها
+// --- Core ---
 app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+app.use(express.urlencoded({ extended: true }));
 
-// ✅ MIME-Type fix برای WOFF/WOFF2 (حل ارور فونت‌ها)
+// MIME type fix
 app.use((req, res, next) => {
   if (req.path.endsWith(".woff2")) res.type("font/woff2");
   else if (req.path.endsWith(".woff")) res.type("font/woff");
   next();
 });
 
-// ✅ پشتیبانی از تمام متدها + بازنویسی مسیر Firestore
+// Proxy handling
 app.all("*", async (req, res) => {
   try {
-    const isFirestore = req.originalUrl.includes("google.firestore.v1.");
-    const targetUrl = isFirestore
+    const targetUrl = req.originalUrl.includes("google.firestore.v1.")
       ? FIRESTORE + req.originalUrl
       : TARGET + req.originalUrl;
 
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 12000); // 12s timeout
+
     const response = await fetch(targetUrl, {
       method: req.method,
-      headers: {
-        ...req.headers,
-        host: undefined,
-        origin: undefined,
-        referer: undefined,
-      },
-      agent,
+      headers: { ...req.headers, host: undefined },
       body:
-        req.method === "GET" || req.method === "HEAD"
+        ["GET", "HEAD"].includes(req.method) || !req.body
           ? undefined
           : JSON.stringify(req.body),
+      agent,
+      signal: controller.signal,
     });
+    clearTimeout(timeout);
 
-    // ✅ CORS Header برای مرورگر
+    // CORS headers
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Access-Control-Allow-Headers", "*");
     res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
 
-    // ✅ عبور دادن بقیه headerها از پاسخ اصلی
-    response.headers.forEach((v, k) => {
-      res.setHeader(k, v);
-    });
-
+    response.headers.forEach((v, k) => res.setHeader(k, v));
     res.status(response.status);
     const buffer = await response.arrayBuffer();
     res.send(Buffer.from(buffer));
   } catch (err) {
-    console.error("❌ Proxy Error:", err);
-    res.status(500).send("Proxy failed");
+    console.error("Proxy error:", err.name, err.message);
+    res.status(502).send("Proxy Error: " + err.message);
   }
 });
 
 app.listen(PORT, () =>
-  console.log(`✅ Mirror Proxy running on port ${PORT}`)
+  console.log(`🌍 Mirror Proxy active on port ${PORT}`)
 );
